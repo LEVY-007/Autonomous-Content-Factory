@@ -1,0 +1,43 @@
+from groq import Groq
+
+api_key = "Add Groq API"
+
+client = Groq(api_key=api_key)
+
+# This is the source content Agent 1 will analyze
+source_content = """
+We are launching ProductX v2.0 — a project management tool for remote teams. 
+Key features include: AI-powered task prioritization, real-time collaboration, 
+Slack and Jira integrations. Pricing starts at $29/month per team. 
+Available from April 1, 2026. Target audience: startup teams of 5-50 people.
+"""
+
+# Agent 1's instructions — its "job description"
+agent1_instructions = """
+You are a Research and Fact-Check Agent. Your job is to read raw content 
+and extract a clean structured fact-sheet.
+
+Return your response in this exact format:
+PRODUCT NAME: [name]
+TARGET AUDIENCE: [who this is for]
+KEY FEATURES: [feature1] | [feature2] | [feature3]
+VALUE PROPOSITION: [the main benefit in one sentence]
+PRICING: [pricing info or Not mentioned]
+AVAILABILITY: [date or Not mentioned]
+AMBIGUOUS STATEMENTS: [any unclear claims, or None found]
+
+Only include what is explicitly stated. Never invent anything.
+"""
+
+# Call Groq with Agent 1's instructions
+response = client.chat.completions.create(
+    model="llama-3.3-70b-versatile",
+    messages=[
+        {"role": "system", "content": agent1_instructions},
+        {"role": "user", "content": f"Analyze this content:\n\n{source_content}"}
+    ]
+)
+
+fact_sheet = response.choices[0].message.content
+print("=== AGENT 1 OUTPUT ===")
+print(fact_sheet)
