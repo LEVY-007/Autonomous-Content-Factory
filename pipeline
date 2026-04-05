@@ -1,0 +1,148 @@
+from groq import Groq
+
+api_key = "add groq api"
+
+client = Groq(api_key=api_key)
+
+def call_groq(system_instructions, user_message):
+    response = client.chat.completions.create(
+        model="llama-3.3-70b-versatile",
+        messages=[
+            {"role": "system", "content": system_instructions},
+            {"role": "user", "content": user_message}
+        ]
+    )
+    return response.choices[0].message.content
+
+def run_agent1(source_content):
+    print("\n🔍 Agent 1 is reading your content...")
+    instructions = """
+    You are a Research and Fact-Check Agent. Read the raw content 
+    and extract a clean structured fact-sheet.
+
+    Return in this exact format:
+    PRODUCT NAME: [name]
+    TARGET AUDIENCE: [who this is for]
+    KEY FEATURES: [feature1] | [feature2] | [feature3]
+    VALUE PROPOSITION: [the main benefit in one sentence]
+    PRICING: [pricing info or Not mentioned]
+    AVAILABILITY: [date or Not mentioned]
+    AMBIGUOUS STATEMENTS: [any unclear claims, or None found]
+
+    Only include what is explicitly stated. Never invent anything.
+    """
+    result = call_groq(instructions, f"Analyze this content:\n\n{source_content}")
+    print("✅ Agent 1 done — Fact-sheet created")
+    return result
+
+def run_agent2(fact_sheet):
+    print("\n✍️  Agent 2 is writing content...")
+    instructions = """
+    You are a Creative Copywriter Agent. Use the fact-sheet to produce 
+    three pieces of marketing content.
+
+    STRICT RULES:
+    - Only use facts from the fact-sheet. Never invent anything.
+    - Blog post: professional tone, around 500 words
+    - Social thread: punchy and engaging, exactly 5 posts numbered 1/ to 5/
+    - Email teaser: one paragraph, warm and compelling
+
+    Return in this exact format:
+    ===BLOG===
+    [blog content here]
+    ===SOCIAL===
+    [social thread here]
+    ===EMAIL===
+    [email teaser here]
+    """
+    result = call_groq(instructions, f"Create content using this fact-sheet:\n\n{fact_sheet}")
+    print("✅ Agent 2 done — Blog, social and email written")
+    return result
+
+def run_agent3(fact_sheet, blog, social, email):
+    print("\n✅ Agent 3 is reviewing everything...")
+    instructions = """
+    You are an Editor-in-Chief Agent. Review the content against the fact-sheet.
+
+    Check for:
+    1. HALLUCINATIONS: Did the copywriter invent any features, prices, or claims?
+    2. TONE ISSUES: Is it too salesy, robotic, or off-brand?
+
+    Return in this exact format:
+    BLOG_STATUS: APPROVED or REJECTED
+    BLOG_NOTE: [reason if rejected, or Looks good]
+    SOCIAL_STATUS: APPROVED or REJECTED
+    SOCIAL_NOTE: [reason if rejected, or Looks good]
+    EMAIL_STATUS: APPROVED or REJECTED
+    EMAIL_NOTE: [reason if rejected, or Looks good]
+    """
+    editor_input = f"""
+    FACT-SHEET:
+    {fact_sheet}
+
+    BLOG:
+    {blog}
+
+    SOCIAL:
+    {social}
+
+    EMAIL:
+    {email}
+    """
+    result = call_groq(instructions, editor_input)
+    print("✅ Agent 3 done — Review complete")
+    return result
+
+def parse_content(raw_output):
+    import re
+    blog = re.search(r"===BLOG===(.*?)===SOCIAL===", raw_output, re.DOTALL)
+    social = re.search(r"===SOCIAL===(.*?)===EMAIL===", raw_output, re.DOTALL)
+    email = re.search(r"===EMAIL===(.*?)$", raw_output, re.DOTALL)
+    return (
+        blog.group(1).strip() if blog else "",
+        social.group(1).strip() if social else "",
+        email.group(1).strip() if email else ""
+    )
+
+# ── Run the full pipeline ──────────────────────────────────
+source_content = """
+We are launching ProductX v2.0 — a project management tool for remote teams. 
+Key features include: AI-powered task prioritization, real-time collaboration, 
+Slack and Jira integrations. Pricing starts at $29/month per team. 
+Available from April 1, 2026. Target audience: startup teams of 5-50 people.
+"""
+
+print("🏭 Autonomous Content Factory — Starting...")
+print("=" * 50)
+
+# Step 1 — Agent 1 reads and extracts facts
+fact_sheet = run_agent1(source_content)
+print("\n--- FACT SHEET ---")
+print(fact_sheet)
+
+# Step 2 — Agent 2 writes the content
+raw_output = run_agent2(fact_sheet)
+blog, social, email = parse_content(raw_output)
+
+# Step 3 — Agent 3 reviews everything
+editor_output = run_agent3(fact_sheet, blog, social, email)
+print("\n--- EDITOR VERDICT ---")
+print(editor_output)
+
+# Step 4 — Show final outputs
+print("\n" + "=" * 50)
+print("📝 FINAL BLOG POST")
+print("=" * 50)
+print(blog)
+
+print("\n" + "=" * 50)
+print("📱 SOCIAL THREAD")
+print("=" * 50)
+print(social)
+
+print("\n" + "=" * 50)
+print("📧 EMAIL TEASER")
+print("=" * 50)
+print(email)
+
+print("\n🎉 Campaign kit ready!")
