@@ -49,6 +49,15 @@ and download the full campaign kit — all from a clean Streamlit interface.
 - Version history with timestamps
 - Per-content and full campaign kit download
 - API error handling with clear warning messages
+## Special Features
+- Tone selector — choose brand voice before generating
+- Try example button — test the app instantly  
+- Live agent room — see each agent working in real time
+- Word count on all outputs
+- Copy buttons on every content piece
+- API key validation on entry
+- Success summary after completion
+- Clear button to reset everything
 
 ---
 
@@ -112,6 +121,5 @@ The app will automatically open at `http://localhost:8501`
 
 - Add URL ingestion so users can paste a link instead of copying text
 - Connect to Gmail to send the email teaser directly
-- Add a tone selector before running so users can pick brand voice(have given a default tone.)
 - Support multiple languages for global campaigns
 - Save campaign history to a database across sessions
