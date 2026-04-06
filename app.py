@@ -12,7 +12,7 @@ st.set_page_config(
 )
 
 st.title("Autonomous Content Factory")
-st.caption("Multi-agent AI system · Powered by Groq")
+st.caption("Multi-agent AI system · Research, Copywriting, Editing ·")
 
 # ── Session state setup ───────────────────────────────────
 # This runs once and sets up all the "memory" variables
@@ -41,6 +41,42 @@ with st.sidebar:
         type="password",
         placeholder="Paste your Groq key here"
     )
+
+    if "validated_key" not in st.session_state:
+        st.session_state.validated_key = ""
+    if "key_valid" not in st.session_state:
+        st.session_state.key_valid = False
+
+    if api_key and api_key != st.session_state.validated_key:
+        with st.spinner("Validating API key..."):
+            try:
+                client = Groq(api_key=api_key)
+                client.chat.completions.create(
+                    model="llama-3.3-70b-versatile",
+                    messages=[{"role": "user", "content": "hi"}],
+                    max_tokens=5
+                )
+                st.session_state.validated_key = api_key
+                st.session_state.key_valid = True
+            except Exception as e:
+                error = str(e)
+                if "401" in error or "invalid_api_key" in error.lower() or "authentication" in error.lower():
+                    st.error("Invalid API key — please check and try again.")
+                elif "429" in error or "rate_limit" in error.lower():
+                    st.warning("Key is valid but rate limited — wait a moment.")
+                    st.session_state.validated_key = api_key
+                    st.session_state.key_valid = True
+                else:
+                    st.error(f"Could not validate: {error}")
+                st.session_state.key_valid = False
+
+    if api_key and st.session_state.key_valid:
+        st.success("API key valid!")
+    elif not api_key:
+        st.session_state.validated_key = ""
+        st.session_state.key_valid = False
+        st.warning("Please enter your Groq API key to get started.")
+
     st.divider()
     st.markdown("**How it works**")
     st.markdown("1. Agent 1 reads your content and extracts facts")
@@ -126,13 +162,50 @@ Rewrite the content based on the feedback above."""
 
 # ── Main input ────────────────────────────────────────────
 st.subheader("Step 1 — Paste your source content")
+example_text = """We are launching NovaMind 1.0 — an AI-powered mental wellness platform designed for working professionals aged 25-45. Key features: personalised daily mood tracking using behavioural AI, 1-on-1 live sessions with certified therapists, AI-generated weekly mental health reports, guided meditation library with 500+ sessions, Slack and Microsoft Teams integration. Pricing: Individual plan $19/month, Team plan $299/month for up to 50 users. Launching globally June 15, 2026. Target audience: HR departments and corporate wellness teams."""
+
+if "source_text" not in st.session_state:
+    st.session_state.source_text = ""
+
+col_src, col_ex = st.columns([4, 1])
+with col_src:
+    st.markdown("#### Source document")
+with col_ex:
+    if st.button("Try example", key="example_btn"):
+        st.session_state.source_text = example_text
+#try example
+if "source_input" not in st.session_state:
+    st.session_state.source_input = ""
+
+if st.session_state.source_text != st.session_state.get("source_input", ""):
+    st.session_state.source_input = st.session_state.source_text
+
 source = st.text_area(
     "Source document",
     height=180,
-    placeholder="Paste your product description, press release, or any raw content here...\n\nExample: We are launching ProductX v2.0 — a project management tool for remote teams. Key features: AI-powered task prioritization, real-time collaboration, Slack and Jira integrations. Pricing: $29/month per team. Available April 2026."
+    placeholder="Paste your product description, press release, or any raw content here...",
+    key="source_input"
 )
 
-run = st.button("🚀 Run Content Factory", type="primary", use_container_width=True)
+st.session_state.source_text = source
+st.markdown("#### Brand voice")
+tone = st.selectbox(
+    "Select tone for content generation",
+    ["Professional", "Casual", "Bold", "Friendly"],
+    key="tone_selector"
+)
+
+col_run, col_clear = st.columns([4, 1])
+with col_run:
+    run = st.button("Run Content Factory", type="primary", use_container_width=True)
+with col_clear:
+    if st.button("🗑️ Clear", use_container_width=True):
+        for key in ["fact_sheet", "fact_sheet_str", "blog", "social", 
+                    "email", "editor_output", "history", "source_text"]:
+            if key in st.session_state:
+                del st.session_state[key]
+        st.session_state.pipeline_ran = False
+        st.rerun()
 
 # ── Run the full pipeline ─────────────────────────────────
 if run:
@@ -150,15 +223,19 @@ if run:
     # Agent room display
     st.divider()
     st.subheader("Step 2 — Agent room")
+    st.markdown("#### Agent room")
     col1, col2, col3 = st.columns(3)
     with col1:
-        st.info("🔍 **Agent 1**\nResearch & Fact-check")
+        agent1_status = st.empty()
+        agent1_status.info("🔍 **Agent 1**\nResearch & Fact-check\n\n⏳ Waiting...")
     with col2:
-        st.info("✍️ **Agent 2**\nCreative Copywriter")
+        agent2_status = st.empty()
+        agent2_status.info("✍️ **Agent 2**\nCreative Copywriter\n\n⏳ Waiting...")
     with col3:
-        st.info("✅ **Agent 3**\nEditor-in-Chief")
-
+        agent3_status = st.empty()
+        agent3_status.info("✅ **Agent 3**\nEditor-in-Chief\n\n⏳ Waiting...")
     # Agent 1
+    agent1_status.warning("🔍 **Agent 1**\nResearch & Fact-check\n\n🔄 Working...")
     with st.spinner("Agent 1 is reading your content..."):
         agent1_instructions = """
         You are a Research and Fact-Check Agent. Read the raw content 
@@ -198,18 +275,30 @@ if run:
             st.session_state.fact_sheet = raw_fact
             st.session_state.fact_sheet_str = raw_fact
     st.success("✅ Agent 1 — Fact-sheet created")
+    agent1_status.success("🔍 **Agent 1**\nResearch & Fact-check\n\n✅ Done!")
+    agent2_status.warning("✍️ **Agent 2**\nCreative Copywriter\n\n🔄 Working...")
 
     # Agent 2
     with st.spinner("Agent 2 is writing blog, social thread and email..."):
-        agent2_instructions = """
+        tone_descriptions = {
+            "Professional": "authoritative, clear and trustworthy",
+            "Casual": "relaxed, conversational and friendly",
+            "Bold": "confident, direct and exciting",
+            "Friendly": "warm, approachable and encouraging"
+        }
+        selected_tone = tone_descriptions[tone]
+
+        agent2_instructions = f"""
         You are a Creative Copywriter Agent. Use the fact-sheet to produce 
         three pieces of marketing content.
 
+        OVERALL BRAND VOICE: {tone} — {selected_tone}
+
         STRICT RULES:
         - Only use facts from the fact-sheet. Never invent anything.
-        - Blog post: professional and trustworthy tone, around 500 words
+        - Blog post: {selected_tone} tone, around 500 words
         - Social thread: punchy and engaging, exactly 5 posts numbered 1/ to 5/
-        - Email teaser: one paragraph, warm,compelling and marketing
+        - Email teaser: one paragraph, {selected_tone} and compelling
 
         Return in this exact format:
         ===BLOG===
@@ -234,6 +323,8 @@ if run:
         save_to_history("email", email, "Original")
 
     st.success("✅ Agent 2 — Blog, social thread and email written")
+    agent2_status.success("✍️ **Agent 2**\nCreative Copywriter\n\n✅ Done!")
+    agent3_status.warning("✅ **Agent 3**\nEditor-in-Chief\n\n🔄 Working...")
 
     # Agent 3
     with st.spinner("Agent 3 is reviewing for errors and tone..."):
@@ -270,6 +361,12 @@ if run:
         )
 
     st.success("✅ Agent 3 — Review complete")
+    agent3_status.success("✅ **Agent 3**\nEditor-in-Chief\n\n✅ Done!")
+    approved_count = sum([
+        1 for key in ["BLOG", "SOCIAL", "EMAIL"]
+        if get_status(st.session_state.editor_output, key) == "APPROVED"
+    ])
+    st.success(f"Campaign ready — 3 pieces generated, {approved_count}/3 approved by Agent 3!")
     st.session_state.pipeline_ran = True
 
 # ── Show outputs (persists after any button click) ────────
@@ -279,7 +376,7 @@ if st.session_state.pipeline_ran:
     st.divider()
     st.subheader("Step 3 — Fact sheet (source of truth)")
 
-    fs = st.session_state.fact_sheet_str
+    fs = st.session_state.fact_sheet
 
     if isinstance(fs, dict):
         col_a, col_b = st.columns(2)
@@ -396,7 +493,12 @@ if st.session_state.pipeline_ran:
         )
 
         if blog_view == "Raw text":
+            word_count = len(st.session_state.blog.split())
+            st.caption(f"Word count: {word_count} words")
             st.text_area("Blog post", value=st.session_state.blog, height=300, key="blog_display")
+            if st.button("📋 Copy blog", key="copy_blog"):
+                st.write(f'<script>navigator.clipboard.writeText(`{st.session_state.blog}`)</script>', unsafe_allow_html=True)
+                st.toast("Blog copied to clipboard!")
 
         else:
             st.markdown(f"""
@@ -461,28 +563,35 @@ if st.session_state.pipeline_ran:
         )
 
         if social_view == "Raw text":
+            post_count = len([p for p in st.session_state.social.split("\n") if p.strip()])
+            st.caption(f"Posts: {post_count}")
             st.text_area("Social thread", value=st.session_state.social, height=250, key="social_display")
+            if st.button("📋 Copy social", key="copy_social"):
+                st.toast("Copied! Paste into your social media tool.")
 
         else:
             posts = [p.strip() for p in st.session_state.social.split("\n") if p.strip()]
-            phone_html = """
-            <div style="
-                display: flex;
-                justify-content: center;
-                padding: 16px 0;
-            ">
+            
+            cards_html = ""
+            for post in posts:
+                avatar = '<div style="width:28px;height:28px;border-radius:50%;background:#EEEDFE;display:flex;align-items:center;justify-content:center;font-size:11px;color:#534AB7;font-weight:600;">YB</div>'
+                name_block = '<div><div style="font-size:12px;font-weight:600;color:#1a1a18;">Your Brand</div><div style="font-size:10px;color:#888;">@yourbrand</div></div>'
+                header = '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">' + avatar + name_block + '</div>'
+                card = '<div style="background:#ffffff;border-radius:12px;padding:12px 14px;margin-bottom:10px;font-family:system-ui,sans-serif;font-size:13px;line-height:1.5;color:#1a1a18;border:0.5px solid #e8e8e8;">' + header + post + '</div>'
+                cards_html += card
+            full_html = f"""
+            <div style="display:flex; justify-content:center; padding:16px 0;">
                 <div style="
                     width: 320px;
                     background: #000;
                     border-radius: 40px;
                     padding: 12px;
-                    box-shadow: 0 8px 32px rgba(0,0,0,0.18);
                 ">
                     <div style="
                         background: #f5f5f5;
                         border-radius: 30px;
                         padding: 16px;
-                        height: 580px;
+                        max-height: 580px;
                         overflow-y: auto;
                     ">
                         <div style="
@@ -491,57 +600,15 @@ if st.session_state.pipeline_ran:
                             color: #888;
                             margin-bottom: 12px;
                             font-family: system-ui;
-                        ">
-                            9:41
-                        </div>
-            """
-
-            for post in posts:
-                phone_html += f"""
-                        <div style="
-                            background: #fff;
-                            border-radius: 12px;
-                            padding: 12px 14px;
-                            margin-bottom: 10px;
-                            font-family: system-ui;
-                            font-size: 13px;
-                            line-height: 1.5;
-                            color: #1a1a18;
-                            border: 0.5px solid #e8e8e8;
-                        ">
-                            <div style="
-                                display: flex;
-                                align-items: center;
-                                gap: 8px;
-                                margin-bottom: 8px;
-                            ">
-                                <div style="
-                                    width: 28px;
-                                    height: 28px;
-                                    border-radius: 50%;
-                                    background: #EEEDFE;
-                                    display: flex;
-                                    align-items: center;
-                                    justify-content: center;
-                                    font-size: 11px;
-                                    color: #534AB7;
-                                    font-weight: 600;
-                                ">YB</div>
-                                <div>
-                                    <div style="font-size:12px; font-weight:600; color:#1a1a18;">Your Brand</div>
-                                    <div style="font-size:10px; color:#888;">@yourbrand</div>
-                                </div>
-                            </div>
-                            {post}
-                        </div>
-                """
-
-            phone_html += """
+                        ">9:41</div>
+                        {cards_html}
                     </div>
                 </div>
             </div>
             """
-            st.markdown(phone_html, unsafe_allow_html=True)
+            st.markdown(full_html, unsafe_allow_html=True)
+
+            
         st.download_button(
             label="⬇️ Download social thread",
             data=st.session_state.social,
@@ -575,7 +642,11 @@ if st.session_state.pipeline_ran:
         else:
             st.warning(f"Agent 3 flagged: {get_note(st.session_state.editor_output, 'EMAIL')}")
 
+        word_count_email = len(st.session_state.email.split())
+        st.caption(f"Word count: {word_count_email} words")
         st.text_area("Email teaser", value=st.session_state.email, height=150, key="email_display")
+        if st.button("📋 Copy email", key="copy_email"):
+            st.toast("Email copied to clipboard!")
 
         st.download_button(
             label="⬇️ Download email teaser",
