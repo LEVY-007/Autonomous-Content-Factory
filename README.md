@@ -30,7 +30,7 @@ and download the full campaign kit — all from a clean Streamlit interface.
 
 | Layer | Technology |
 |---|---|
-| Language | Python 3.9+ |
+| Language | Python 3.13 |
 | UI Framework | Streamlit |
 | AI Model | Llama 3.3 70B via Groq API |
 | Text parsing | Python `re` module |
